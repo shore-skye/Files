@@ -11,7 +11,7 @@ namespace Files.App.Data.Items
 	[WinRT.GeneratedBindableCustomProperty([nameof(LengthPixels), nameof(LengthIncludingGridSplitterPixels), nameof(Visibility)], [])]
 	public sealed partial class DetailsLayoutColumnItem : ObservableObject
 	{
-		private const int GRID_SPLITTER_WIDTH = 12;
+		public const int GRID_SPLITTER_WIDTH = 12;
 
 		public double UserLengthPixels
 		{
@@ -42,28 +42,68 @@ namespace Files.App.Data.Items
 		[RegistryIgnore]
 		public bool IsResizable { get; set; } = true;
 
+		private bool _IsCollapsedToFit;
+
+		/// <summary>
+		/// Gets or sets whether the column is temporarily hidden so the remaining columns fit the view. Not persisted.
+		/// </summary>
+		[RegistryIgnore, JsonIgnore]
+		public bool IsCollapsedToFit
+		{
+			get => _IsCollapsedToFit;
+			set
+			{
+				if (SetProperty(ref _IsCollapsedToFit, value))
+					UpdateVisibility();
+			}
+		}
+
+		private double _FitLength = double.NaN;
+
+		/// <summary>
+		/// Gets or sets the width the column is temporarily narrowed to so the columns fit the view, or NaN when not narrowed. Not persisted.
+		/// </summary>
+		[RegistryIgnore, JsonIgnore]
+		public double FitLength
+		{
+			get => _FitLength;
+			set
+			{
+				if (SetProperty(ref _FitLength, value))
+					UpdateVisibility();
+			}
+		}
+
+		private bool IsCollapsed
+			=> UserCollapsed || IsHidden || IsCollapsedToFit;
+
+		private GridLength EffectiveLength
+			=> double.IsNaN(FitLength) || UserLength.GridUnitType != GridUnitType.Pixel || FitLength >= UserLength.Value
+				? UserLength
+				: new(FitLength, GridUnitType.Pixel);
+
 		public double MinLength
-			=> UserCollapsed || IsHidden ? 0 : NormalMinLength;
+			=> IsCollapsed ? 0 : NormalMinLength;
 
 		public Visibility Visibility
-			=> UserCollapsed || IsHidden ? Visibility.Collapsed : Visibility.Visible;
+			=> IsCollapsed ? Visibility.Collapsed : Visibility.Visible;
 
 		public GridLength Length
-			=> UserCollapsed || IsHidden ? new GridLength(0) : UserLength;
+			=> IsCollapsed ? new GridLength(0) : EffectiveLength;
 
 		[RegistryIgnore, JsonIgnore]
 		public double LengthPixels => Length.Value;
 
 		public GridLength LengthIncludingGridSplitter =>
-			UserCollapsed || IsHidden
+			IsCollapsed
 				? new(0)
-				: new(UserLength.Value + (IsResizable ? GRID_SPLITTER_WIDTH : 0));
+				: new(EffectiveLength.Value + (IsResizable ? GRID_SPLITTER_WIDTH : 0));
 
 		[RegistryIgnore, JsonIgnore]
 		public double LengthIncludingGridSplitterPixels => LengthIncludingGridSplitter.Value;
 
 		public double MaxLength
-			=> UserCollapsed || IsHidden ? 0 : NormalMaxLength;
+			=> IsCollapsed ? 0 : NormalMaxLength;
 
 		private bool _IsHidden;
 
@@ -127,6 +167,10 @@ namespace Files.App.Data.Items
 			OnPropertyChanged(nameof(MinLength));
 		}
 
+		// Width ignoring the temporary fit-to-view state, so fitting never makes saved layouts look changed.
+		private double PersistedLength
+			=> UserCollapsed || IsHidden ? 0 : UserLength.Value;
+
 		public override bool Equals(object? obj)
 		{
 			if (obj is null)
@@ -139,8 +183,8 @@ namespace Files.App.Data.Items
 			{
 				return
 					model.UserCollapsed == UserCollapsed &&
-					model.Length.Value == Length.Value &&
-					model.LengthIncludingGridSplitter.Value == LengthIncludingGridSplitter.Value &&
+					model.PersistedLength == PersistedLength &&
+					model.IsResizable == IsResizable &&
 					model.UserLength.Value == UserLength.Value;
 			}
 
@@ -150,8 +194,8 @@ namespace Files.App.Data.Items
 		public override int GetHashCode()
 		{
 			var hashCode = UserCollapsed.GetHashCode();
-			hashCode = (hashCode * 397) ^ Length.Value.GetHashCode();
-			hashCode = (hashCode * 397) ^ LengthIncludingGridSplitter.Value.GetHashCode();
+			hashCode = (hashCode * 397) ^ PersistedLength.GetHashCode();
+			hashCode = (hashCode * 397) ^ IsResizable.GetHashCode();
 			hashCode = (hashCode * 397) ^ UserLength.Value.GetHashCode();
 
 			return hashCode;

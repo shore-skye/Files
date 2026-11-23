@@ -19,5 +19,10 @@ namespace Files.App.Data.Enums
 		/// Uses universal setting.
 		/// </summary>
 		Universal = 2,
+
+		/// <summary>
+		/// Uses the user-defined format string.
+		/// </summary>
+		Custom = 3,
 	}
 }

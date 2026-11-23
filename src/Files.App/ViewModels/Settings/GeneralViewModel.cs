@@ -59,6 +59,7 @@ namespace Files.App.ViewModels.Settings
 				{
 					OnPropertyChanged(nameof(SelectedDateTimeFormatIndex));
 					DateTimeFormat = (DateTimeFormats)value;
+					OnPropertyChanged(nameof(IsCustomDateTimeFormat));
 				}
 			}
 		}
@@ -136,6 +137,12 @@ namespace Files.App.ViewModels.Settings
 			{
 				SetProperty(ref selectedDateTimeFormatIndex, (int)settings.DateTimeFormat, nameof(SelectedDateTimeFormatIndex));
 				OnPropertyChanged(nameof(DateFormatSample));
+				OnPropertyChanged(nameof(IsCustomDateTimeFormat));
+			}
+			if (name is null or nameof(IGeneralSettingsService.CustomDateTimeFormat))
+			{
+				OnPropertyChanged(nameof(CustomDateTimeFormat));
+				OnPropertyChanged(nameof(DateFormatSample));
 			}
 			if (name is null or nameof(IGeneralSettingsService.ShellPaneArrangementOption))
 			{
@@ -191,7 +198,7 @@ namespace Files.App.ViewModels.Settings
 			DateTimeOffset sampleDate1 = DateTime.Now.AddSeconds(-5);
 			DateTimeOffset sampleDate2 = new DateTime(sampleDate1.Year - 5, 12, 31, 14, 30, 0);
 
-			var styles = new DateTimeFormats[] { DateTimeFormats.Application, DateTimeFormats.System, DateTimeFormats.Universal };
+			var styles = new DateTimeFormats[] { DateTimeFormats.Application, DateTimeFormats.System, DateTimeFormats.Universal, DateTimeFormats.Custom };
 
 			DateFormats = styles.Select(style => new DateTimeFormatItem(style, sampleDate1, sampleDate2)).ToList();
 		}
@@ -427,7 +434,32 @@ namespace Files.App.ViewModels.Settings
 		}
 
 		public string DateFormatSample
-			=> string.Format(Strings.DateFormatSample.GetLocalizedResource(), DateFormats[SelectedDateTimeFormatIndex].Sample1, DateFormats[SelectedDateTimeFormatIndex].Sample2);
+		{
+			get
+			{
+				// Recreated so the custom format sample reflects the current format string.
+				var item = DateFormats[SelectedDateTimeFormatIndex];
+				var sample = new DateTimeFormatItem((DateTimeFormats)SelectedDateTimeFormatIndex, item.SampleDate1, item.SampleDate2);
+				return string.Format(Strings.DateFormatSample.GetLocalizedResource(), sample.Sample1, sample.Sample2);
+			}
+		}
+
+		public bool IsCustomDateTimeFormat
+			=> DateTimeFormat == DateTimeFormats.Custom;
+
+		public string CustomDateTimeFormat
+		{
+			get => UserSettingsService.GeneralSettingsService.CustomDateTimeFormat;
+			set
+			{
+				if (value != UserSettingsService.GeneralSettingsService.CustomDateTimeFormat)
+				{
+					UserSettingsService.GeneralSettingsService.CustomDateTimeFormat = value;
+					OnPropertyChanged();
+					OnPropertyChanged(nameof(DateFormatSample));
+				}
+			}
+		}
 
 		private DispatcherQueue dispatcherQueue;
 
@@ -680,8 +712,14 @@ namespace Files.App.ViewModels.Settings
 
 		public string Sample2 { get; }
 
+		public DateTimeOffset SampleDate1 { get; }
+
+		public DateTimeOffset SampleDate2 { get; }
+
 		public DateTimeFormatItem(DateTimeFormats style, DateTimeOffset sampleDate1, DateTimeOffset sampleDate2)
 		{
+			SampleDate1 = sampleDate1;
+			SampleDate2 = sampleDate2;
 			var factory = Ioc.Default.GetRequiredService<IDateTimeFormatterFactory>();
 			var formatter = factory.GetDateTimeFormatter(style);
 

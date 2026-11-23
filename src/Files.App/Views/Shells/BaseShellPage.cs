@@ -21,6 +21,7 @@ namespace Files.App.Views.Shells
 		private DispatcherQueueTimer? _updateDateDisplayTimer;
 
 		private DateTimeFormats _lastDateTimeFormats;
+		private string? _lastCustomDateTimeFormat;
 
 		private (StatusBarViewModel?, int, int, StatusBarItemCountFormat) _lastStatusBarItemCountState;
 
@@ -226,6 +227,7 @@ namespace Files.App.Views.Shells
 			_updateDateDisplayTimer.Interval = TimeSpan.FromSeconds(1);
 			_updateDateDisplayTimer.Tick += UpdateDateDisplayTimer_Tick;
 			_lastDateTimeFormats = userSettingsService.GeneralSettingsService.DateTimeFormat;
+			_lastCustomDateTimeFormat = userSettingsService.GeneralSettingsService.CustomDateTimeFormat;
 
 			App.AppModel.PropertyChanged += AppModel_PropertyChanged;
 		}
@@ -906,9 +908,11 @@ namespace Files.App.Views.Shells
 			if (App.AppModel.IsMainWindowClosed)
 				return;
 
-			if (userSettingsService.GeneralSettingsService.DateTimeFormat != _lastDateTimeFormats)
+			if (userSettingsService.GeneralSettingsService.DateTimeFormat != _lastDateTimeFormats ||
+				userSettingsService.GeneralSettingsService.CustomDateTimeFormat != _lastCustomDateTimeFormat)
 			{
 				_lastDateTimeFormats = userSettingsService.GeneralSettingsService.DateTimeFormat;
+				_lastCustomDateTimeFormat = userSettingsService.GeneralSettingsService.CustomDateTimeFormat;
 				ShellViewModel?.UpdateDateDisplay();
 			}
 			else if (userSettingsService.GeneralSettingsService.DateTimeFormat == DateTimeFormats.Application)

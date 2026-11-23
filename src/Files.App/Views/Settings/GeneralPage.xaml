@@ -82,6 +82,19 @@
 				</uc:ComboBoxEx>
 			</wctcontrols:SettingsCard>
 
+			<!--  Custom date format  -->
+			<wctcontrols:SettingsCard
+				HorizontalAlignment="Stretch"
+				Description="{helpers:ResourceString Name=CustomDateFormatDescription}"
+				Header="{helpers:ResourceString Name=CustomDateFormat}"
+				Visibility="{x:Bind ViewModel.IsCustomDateTimeFormat, Mode=OneWay}">
+				<TextBox
+					MinWidth="200"
+					AutomationProperties.Name="{helpers:ResourceString Name=CustomDateFormat}"
+					PlaceholderText="yyyy-MM-dd"
+					Text="{x:Bind ViewModel.CustomDateTimeFormat, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+			</wctcontrols:SettingsCard>
+
 			<!--  Startup settings  -->
 			<wctcontrols:SettingsExpander Header="{helpers:ResourceString Name=StartupSettings}" IsExpanded="False">
 				<wctcontrols:SettingsExpander.HeaderIcon>

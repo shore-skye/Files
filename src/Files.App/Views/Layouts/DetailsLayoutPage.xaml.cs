@@ -53,6 +53,11 @@ namespace Files.App.Views.Layouts
 
 		private DispatcherQueueTimer? _autoFitColumnsTimer;
 
+		// Narrowest the Name column gets when shrinking it to fit the view, unless the user made it narrower.
+		private const double NameColumnMinFitWidth = 160;
+		private bool _isFitColumnsQueued;
+		private bool _isResizingColumn;
+
 		// Properties
 
 		protected override ListViewBase ListViewBase => FileList;
@@ -814,18 +819,106 @@ namespace Files.App.Views.Layouts
 			foreach (var (id, columnHeader) in _columnHeaders)
 			{
 				var column = ColumnsViewModel.GetColumn(id);
-				if (column.Visibility == Visibility.Visible)
-					column.UserLength = columnHeader.Column.Width;
+
+				// Only store widths the user changed, so a width narrowed to fit the view is not saved as the user's width.
+				if (column.Visibility != Visibility.Visible || Math.Abs(columnHeader.Column.Width.Value - column.Length.Value) < 0.5)
+					continue;
+
+				column.FitLength = double.NaN;
+				column.UserLength = columnHeader.Column.Width;
 			}
 		}
 
 		private void RootGrid_SizeChanged(object? sender, SizeChangedEventArgs? e)
 		{
 			MaxWidthForRenameTextbox = Math.Max(0, RootGrid.ActualWidth - 80);
+			FitColumnsToView();
+		}
+
+		private void QueueFitColumnsToView()
+		{
+			if (_isFitColumnsQueued)
+				return;
+
+			_isFitColumnsQueued = true;
+			DispatcherQueue.TryEnqueue(() =>
+			{
+				_isFitColumnsQueued = false;
+				FitColumnsToView();
+			});
+		}
+
+		/// <summary>
+		/// Keeps the columns within the view without changing the saved layout: narrows the Name column first,
+		/// then temporarily hides columns from the end of the row until the rest fit.
+		/// </summary>
+		private void FitColumnsToView()
+		{
+			if (_isResizingColumn || FileList.ActualWidth <= 0 || _fixedHeaderColumnDefinitions.Length == 0)
+				return;
+
+			var available = FileList.ActualWidth
+				- FileList.Padding.Left - FileList.Padding.Right
+				- HeaderGrid.Margin.Left - HeaderGrid.Margin.Right
+				- HeaderGrid.Padding.Left - HeaderGrid.Padding.Right
+				- ColumnsViewModel.IconColumn.LengthPixels
+				- _fixedHeaderColumnDefinitions[1].ActualWidth;
+
+			var shown = new List<DetailsLayoutColumnItem>();
+			foreach (var id in ColumnsViewModel.OrderedColumns.Ids)
+			{
+				if (DetailsLayoutColumnOrder.IsPinned(id) || ColumnsViewModel.FindColumn(id) is not { } column)
+					continue;
+
+				if (column.UserCollapsed || column.IsHidden)
+				{
+					column.IsCollapsedToFit = false;
+					column.FitLength = double.NaN;
+				}
+				else
+				{
+					shown.Add(column);
+				}
+			}
+
+			static double NeededWidth(DetailsLayoutColumnItem column)
+				=> column.UserLength.Value + (column.IsResizable ? DetailsLayoutColumnItem.GRID_SPLITTER_WIDTH : 0);
+
+			var nameColumn = ColumnsViewModel.FindColumn(DetailsLayoutColumnIds.Name);
+			var nameShrinkable = nameColumn is not null && shown.Contains(nameColumn)
+				? Math.Max(0, nameColumn.UserLength.Value - Math.Max(nameColumn.NormalMinLength, NameColumnMinFitWidth))
+				: 0;
+
+			var total = shown.Sum(NeededWidth);
+			var collapsed = new HashSet<DetailsLayoutColumnItem>();
+			for (var i = shown.Count - 1; i >= 0 && total - nameShrinkable > available; i--)
+			{
+				if (ReferenceEquals(shown[i], nameColumn))
+					continue;
+
+				collapsed.Add(shown[i]);
+				total -= NeededWidth(shown[i]);
+			}
+
+			foreach (var column in shown)
+			{
+				column.IsCollapsedToFit = collapsed.Contains(column);
+				if (!ReferenceEquals(column, nameColumn))
+					column.FitLength = double.NaN;
+			}
+
+			if (nameColumn is not null)
+			{
+				var overflow = total - available;
+				nameColumn.FitLength = overflow > 0 && nameShrinkable > 0
+					? nameColumn.UserLength.Value - Math.Min(overflow, nameShrinkable)
+					: double.NaN;
+			}
 		}
 
 		private void GridSplitter_ManipulationStarted(object sender, ManipulationStartedRoutedEventArgs e)
 		{
+			_isResizingColumn = true;
 			this.ChangeCursor(InputSystemCursor.Create(InputSystemCursorShape.SizeWestEast));
 		}
 
@@ -835,6 +928,8 @@ namespace Files.App.Views.Layouts
 				?? throw new InvalidOperationException("The details layout does not have folder settings.");
 			folderSettings.ColumnsViewModel = ColumnsViewModel;
 			this.ChangeCursor(InputSystemCursor.Create(InputSystemCursorShape.Arrow));
+			_isResizingColumn = false;
+			FitColumnsToView();
 		}
 
 		[DynamicWindowsRuntimeCast(typeof(UIElement))]
@@ -1052,9 +1147,15 @@ namespace Files.App.Views.Layouts
 		private void ColumnsViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
 		{
 			if (e.PropertyName == nameof(ColumnsViewModel.OrderedColumns))
+			{
 				ApplyHeaderColumnOrder();
+				QueueFitColumnsToView();
+			}
 			else if (e.PropertyName == nameof(ColumnsViewModel.LayoutVersion))
+			{
 				UpdatePrimaryHeader();
+				QueueFitColumnsToView();
+			}
 		}
 
 		private void ApplyHeaderColumnOrder()

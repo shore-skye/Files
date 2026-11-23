@@ -10,6 +10,7 @@ namespace Files.App.Services.DateTimeFormatter
 			DateTimeFormats.Application => new ApplicationDateTimeFormatter(),
 			DateTimeFormats.System => new SystemDateTimeFormatter(),
 			DateTimeFormats.Universal => new UniversalDateTimeFormatter(),
+			DateTimeFormats.Custom => new CustomDateTimeFormatter(),
 			_ => throw new ArgumentException(nameof(dateTimeFormat)),
 		};
 	}

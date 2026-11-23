@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Media;
+using System.Globalization;
 using Windows.System;
 
 namespace Files.App.Helpers
@@ -100,18 +101,35 @@ namespace Files.App.Helpers
 
 			inputText.TextChanged += (textBox, args) => UpdateDialogState();
 
+			var isFolder = itemType.Equals("Folder", StringComparison.OrdinalIgnoreCase);
+
+			var displayControl = new Grid()
+			{
+				MinWidth = 300d,
+				ColumnSpacing = 8d,
+				ColumnDefinitions =
+				{
+					new ColumnDefinition() { Width = new GridLength(1, GridUnitType.Star) },
+					new ColumnDefinition() { Width = GridLength.Auto },
+				},
+				Children =
+				{
+					inputText
+				}
+			};
+
+			if (isFolder)
+			{
+				var insertDateButton = GetInsertDateButton(inputText);
+				Grid.SetColumn(insertDateButton, 1);
+				displayControl.Children.Add(insertDateButton);
+			}
+
 			dialog = new DynamicDialog(new DynamicDialogViewModel()
 			{
 				TitleText = string.Format(Strings.CreateNewItemTitle.GetLocalizedResource(), itemType),
 				SubtitleText = Strings.EnterAnItemName.GetLocalizedResource(),
-				DisplayControl = new Grid()
-				{
-					MinWidth = 300d,
-					Children =
-					{
-						inputText
-					}
-				},
+				DisplayControl = displayControl,
 				DisplayControlOnLoaded = async (vm, e) =>
 				{
 					UpdateDialogState();
@@ -140,7 +158,7 @@ namespace Files.App.Helpers
 			});
 
 			// Prefill text box with default name #17845
-			if (itemType.Equals("Folder", StringComparison.OrdinalIgnoreCase))
+			if (isFolder)
 				inputText.Text = Strings.NewFolder.GetLocalizedResource();
 			else if (itemName is not null)
 				inputText.Text = FilesystemHelpers.FilterRestrictedCharacters(string.Format(Strings.CreateNewFile.GetLocalizedResource(), itemName));
@@ -155,6 +173,85 @@ namespace Files.App.Helpers
 			};
 
 			return dialog;
+		}
+
+		// Filename-safe formats; null adds a separator between the date and date-time groups.
+		private static readonly string?[] FolderNameDateFormats =
+		[
+			"yyyyMMdd",
+			"yyyy-MM-dd",
+			"yyMMdd",
+			"yyyy-MM",
+			"dd-MM-yyyy",
+			"MM-dd-yyyy",
+			null,
+			"yyyyMMdd-HHmmss",
+			"yyyyMMdd'T'HHmmss",
+			"yyyy-MM-dd_HH-mm-ss",
+			"yyyy-MM-dd HHmm",
+		];
+
+		/// <summary>
+		/// Gets a button that fills <paramref name="inputText"/> with the current date.
+		/// Its context menu chooses the format, which is remembered in the settings.
+		/// </summary>
+		private static Button GetInsertDateButton(TextBox inputText)
+		{
+			var generalSettings = Ioc.Default.GetRequiredService<IUserSettingsService>().GeneralSettingsService;
+
+			static string FormatNow(string format)
+			{
+				try
+				{
+					return DateTime.Now.ToString(format, CultureInfo.InvariantCulture);
+				}
+				catch (FormatException)
+				{
+					return DateTime.Now.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+				}
+			}
+
+			void InsertDate()
+			{
+				inputText.Text = FilesystemHelpers.FilterRestrictedCharacters(FormatNow(generalSettings.FolderNameDateFormat));
+				inputText.Focus(FocusState.Programmatic);
+				inputText.SelectAll();
+			}
+
+			var button = new Button()
+			{
+				Content = new FontIcon() { Glyph = "", FontSize = 16d },
+				VerticalAlignment = VerticalAlignment.Stretch,
+			};
+			ToolTipService.SetToolTip(button, Strings.InsertTodaysDate.GetLocalizedResource());
+			Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, Strings.InsertTodaysDate.GetLocalizedResource());
+			button.Click += (s, e) => InsertDate();
+
+			var formatMenu = new MenuFlyout();
+			foreach (var format in FolderNameDateFormats)
+			{
+				if (format is null)
+				{
+					formatMenu.Items.Add(new MenuFlyoutSeparator());
+					continue;
+				}
+
+				var item = new RadioMenuFlyoutItem()
+				{
+					Text = $"{format}  ({FormatNow(format)})",
+					GroupName = "FolderNameDateFormat",
+					IsChecked = format == generalSettings.FolderNameDateFormat,
+				};
+				item.Click += (s, e) =>
+				{
+					generalSettings.FolderNameDateFormat = format;
+					InsertDate();
+				};
+				formatMenu.Items.Add(item);
+			}
+			button.ContextFlyout = formatMenu;
+
+			return button;
 		}
 
 		public static DynamicDialog GetFor_CannotRunFileDialog()

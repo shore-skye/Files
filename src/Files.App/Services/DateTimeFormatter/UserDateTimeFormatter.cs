@@ -38,7 +38,7 @@ namespace Files.App.Services.DateTimeFormatter
 
 		private void UserSettingsService_OnSettingChangedEvent(object? sender, SettingChangedEventArgs e)
 		{
-			if (e.SettingName is nameof(UserSettingsService.GeneralSettingsService.DateTimeFormat))
+			if (e.SettingName is nameof(UserSettingsService.GeneralSettingsService.DateTimeFormat) or nameof(UserSettingsService.GeneralSettingsService.CustomDateTimeFormat))
 				Update();
 		}
 	}

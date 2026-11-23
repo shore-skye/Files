@@ -89,6 +89,18 @@ namespace Files.App.Services.Settings
 			set => Set(value);
 		}
 
+		public string CustomDateTimeFormat
+		{
+			get => Get(CustomDateTimeFormatter.DefaultFormat);
+			set => Set(value);
+		}
+
+		public string FolderNameDateFormat
+		{
+			get => Get("yyyyMMdd");
+			set => Set(value);
+		}
+
 		public bool AlwaysOpenDualPaneInNewTab
 		{
 			get => Get(false);

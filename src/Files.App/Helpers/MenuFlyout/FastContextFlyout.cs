@@ -27,6 +27,11 @@ namespace Files.App.Helpers.ContextFlyouts
 			"{6119575F-6918-4392-AF16-C2C627AF9416}",
 		};
 
+		/// <summary>
+		/// Tag of the Properties item, which stays last before the overflow area when shell items are added.
+		/// </summary>
+		public const string PropertiesItemTag = "OpenPropertiesItem";
+
 		private static readonly TimeSpan ShellMenuTimeout = TimeSpan.FromMilliseconds(100);
 
 		private static ControlTemplate? primaryRowTemplate;
@@ -274,7 +279,12 @@ namespace Files.App.Helpers.ContextFlyouts
 			var index = overflowSeparator is not null ? Items.IndexOf(overflowSeparator) : -1;
 			if (index < 0)
 				index = Items.IndexOf(overflowSubMenu);
-			return index < 0 ? Items.Count : index;
+			if (index < 0)
+				index = Items.Count;
+
+			// Keep Properties as the last item before "Show more options".
+			var propertiesIndex = FindByTag(PropertiesItemTag) is { } properties ? Items.IndexOf(properties) : -1;
+			return propertiesIndex >= 0 && propertiesIndex < index ? propertiesIndex : index;
 		}
 
 		/// <summary>

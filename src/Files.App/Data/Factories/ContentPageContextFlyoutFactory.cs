@@ -411,11 +411,6 @@ namespace Files.App.Data.Factories
 					IsVisible = itemsSelected,
 					IsPrimary = true,
 				}.Build(),
-				new ContextMenuFlyoutItemViewModelBuilder(ModifiableCommands.OpenProperties)
-				{
-					IsPrimary = true,
-					IsVisible = ModifiableCommands.OpenProperties.IsExecutable
-				}.Build(),
 				new ContextMenuFlyoutItemViewModelBuilder(Commands.OpenParentFolder).Build(),
 				new ContextMenuFlyoutItemViewModelBuilder(Commands.PinFolderToSidebar)
 				{
@@ -526,6 +521,12 @@ namespace Files.App.Data.Factories
 				}.Build(),
 				new ContextMenuFlyoutItemViewModelBuilder(Commands.OpenStorageSense).Build(),
 				new ContextMenuFlyoutItemViewModelBuilder(Commands.FormatDrive).Build(),
+				// Shown as a labeled item at the end, like File Explorer; shell items are inserted above it.
+				new ContextMenuFlyoutItemViewModelBuilder(ModifiableCommands.OpenProperties)
+				{
+					IsVisible = ModifiableCommands.OpenProperties.IsExecutable,
+					Tag = FastContextFlyout.PropertiesItemTag,
+				}.Build(),
 				// Shell extensions are not available on the FTP server or in the archive,
 				// but following items are intentionally added because icons in the context menu will not appear
 				// unless there is at least one menu item with an icon that is not an ThemedIconModel. (#12943)

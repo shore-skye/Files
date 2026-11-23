@@ -2063,6 +2063,15 @@
   <data name="DateFormatSample" xml:space="preserve">
     <value>ex: {0}, {1}</value>
   </data>
+  <data name="CustomDateFormat" xml:space="preserve">
+    <value>Custom date format</value>
+  </data>
+  <data name="CustomDateFormatDescription" xml:space="preserve">
+    <value>Uses .NET date and time format strings, for example yyyy-MM-dd or yyyy-MM-dd HH:mm</value>
+  </data>
+  <data name="InsertTodaysDate" xml:space="preserve">
+    <value>Insert today's date (right-click to change the format)</value>
+  </data>
   <data name="SettingsFilesAndFoldersShowThumbnails" xml:space="preserve">
     <value>Show thumbnails</value>
   </data>

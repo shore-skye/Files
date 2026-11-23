@@ -71,6 +71,16 @@ namespace Files.App.Data.Contracts
 		DateTimeFormats DateTimeFormat { get; set; }
 
 		/// <summary>
+		/// Gets or sets the .NET date and time format string used when <see cref="DateTimeFormat"/> is <see cref="DateTimeFormats.Custom"/>.
+		/// </summary>
+		string CustomDateTimeFormat { get; set; }
+
+		/// <summary>
+		/// Gets or sets the .NET date and time format string used by the new folder dialog's insert date button.
+		/// </summary>
+		string FolderNameDateFormat { get; set; }
+
+		/// <summary>
 		/// Gets or sets a value indicating whether or not to always open a second pane when opening a new tab.
 		/// </summary>
 		bool AlwaysOpenDualPaneInNewTab { get; set; }
