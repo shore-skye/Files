@@ -25,7 +25,15 @@ if (-not (Test-Path "Cert:\LocalMachine\TrustedPeople\$thumbprint")) {
 
 $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
 $deps = @(Get-ChildItem (Join-Path $root "Dependencies\$arch") -Filter *.msix -ErrorAction SilentlyContinue)
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 foreach ($dep in $deps) {
+    # Skip frameworks whose same or newer version is already installed (they may be in use by other apps)
+    $zip = [IO.Compression.ZipFile]::OpenRead($dep.FullName)
+    try { $identity = ([xml](New-Object IO.StreamReader ($zip.GetEntry('AppxManifest.xml').Open())).ReadToEnd()).Package.Identity }
+    finally { $zip.Dispose() }
+    $installed = Get-AppxPackage -Name $identity.Name | Where-Object { $_.Architecture -eq $identity.ProcessorArchitecture -and [version]$_.Version -ge [version]$identity.Version }
+    if ($installed) { Write-Host "Dependency $($identity.Name) $($identity.Version) is already installed."; continue }
+
     Write-Host "Installing dependency $($dep.Name)..."
     try { Add-AppxPackage -Path $dep.FullName }
     catch {
