@@ -644,17 +644,7 @@ namespace Files.App.Helpers
 			if (string.IsNullOrEmpty(path))
 				return new();
 
-			if (path == Constants.UserEnvironmentPaths.DownloadsPath)
-			{
-				// Default for downloads folder is to group by date created
-				return new()
-				{
-					DirectoryGroupOption = GroupOption.DateCreated,
-					DirectoryGroupDirection = SortDirection.Descending,
-					DirectoryGroupByDateUnit = GroupByDateUnit.Year
-				};
-			}
-			else if (LibraryManager.IsLibraryPath(path))
+			if (LibraryManager.IsLibraryPath(path))
 			{
 				// Default for libraries is to group by folder path
 				return new()

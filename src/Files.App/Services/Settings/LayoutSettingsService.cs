@@ -43,7 +43,7 @@ namespace Files.App.Services.Settings
 
 		public bool DefaultSortDirectoriesAlongsideFiles
 		{
-			get => Get(false);
+			get => Get(true);
 			set => Set(value);
 		}
 
