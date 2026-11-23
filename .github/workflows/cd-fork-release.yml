@@ -1,0 +1,120 @@
+# Builds, signs, and publishes this fork as a GitHub release when a version tag is pushed.
+# Tag format: v<major>.<minor>.<build>.<revision>, for example v4.3.3.1
+#
+# Required repository secrets:
+#   FORK_SIGNING_PFX_BASE64   - base64 of the PFX whose subject matches .github/fork/FilesFork.cer
+#   FORK_SIGNING_PFX_PASSWORD - password for that PFX
+
+name: Files CD (Fork Release)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-2025-vs2026
+    env:
+      SOLUTION_NAME:         'Files.slnx'
+      CONFIGURATION:         'Release'
+      PLATFORM:              'x64'
+      APP_PROJECT_PATH:      'src\Files.App\Files.App.csproj'
+      LAUNCHER_PROJECT_PATH: 'src\Files.App.Launcher\Files.App.Launcher.vcxproj'
+      PACKAGE_MANIFEST_PATH: 'src\Files.App\Package.appxmanifest'
+      APPX_PACKAGE_DIR:      '${{ github.workspace }}\artifacts\AppxPackages\'
+      RELEASE_DIR:           '${{ github.workspace }}\artifacts\Release'
+
+    steps:
+    - name: Checkout the repository
+      uses: actions/checkout@v6
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v3
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v3
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        global-json-file: global.json
+
+    - name: Configure the package manifest
+      shell: pwsh
+      run: |
+        $version = '${{ github.ref_name }}'.TrimStart('v')
+        "VERSION=$version" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+        ./.github/fork/Configure-ForkManifest.ps1 -PackageManifestPath $env:PACKAGE_MANIFEST_PATH -Version $version
+
+    - name: Restore Files
+      shell: pwsh
+      run: |
+        msbuild $env:SOLUTION_NAME `
+          -t:Restore `
+          -p:Platform=$env:PLATFORM `
+          -p:Configuration=$env:CONFIGURATION `
+          -p:PublishReadyToRun=true `
+          -v:quiet
+
+    - name: Restore and build the launcher
+      shell: pwsh
+      run: |
+        nuget restore "$env:LAUNCHER_PROJECT_PATH" -SolutionDirectory "${{ github.workspace }}"
+        msbuild "$env:LAUNCHER_PROJECT_PATH" `
+          -t:Build `
+          -p:Platform=$env:PLATFORM `
+          -p:Configuration=$env:CONFIGURATION `
+          -v:quiet
+
+    - name: Build, package, and sign Files
+      shell: pwsh
+      run: |
+        $pfx = Join-Path $env:RUNNER_TEMP 'signing.pfx'
+        [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
+        msbuild "$env:APP_PROJECT_PATH" `
+          -t:Build `
+          -p:Platform=$env:PLATFORM `
+          -p:Configuration=$env:CONFIGURATION `
+          -p:AppxPackageDir="$env:APPX_PACKAGE_DIR" `
+          -p:AppxBundle=Never `
+          -p:GenerateAppxPackageOnBuild=true `
+          -p:UapAppxPackageBuildMode=SideloadOnly `
+          -p:AppxPackageSigningEnabled=true `
+          -p:PackageCertificateKeyFile="$pfx" `
+          -p:PackageCertificatePassword="$env:PFX_PASSWORD" `
+          -p:PackageCertificateThumbprint="" `
+          -v:quiet
+        Remove-Item $pfx
+      env:
+        PFX_BASE64: ${{ secrets.FORK_SIGNING_PFX_BASE64 }}
+        PFX_PASSWORD: ${{ secrets.FORK_SIGNING_PFX_PASSWORD }}
+
+    - name: Assemble the release
+      shell: pwsh
+      run: |
+        $msix = Get-ChildItem $env:APPX_PACKAGE_DIR -Recurse -Filter *.msix |
+          Where-Object { $_.FullName -notmatch '\\Dependencies\\' } | Select-Object -First 1
+        if (-not $msix) { throw 'No .msix was produced.' }
+        $folder = Join-Path $env:RELEASE_DIR "Files-$env:VERSION-x64"
+        New-Item -ItemType Directory -Force $folder | Out-Null
+        Copy-Item $msix.FullName (Join-Path $folder "Files_$($env:VERSION)_x64.msix")
+        $deps = Join-Path $msix.DirectoryName 'Dependencies'
+        if (Test-Path $deps) { Copy-Item $deps $folder -Recurse }
+        Copy-Item .github/fork/FilesFork.cer, .github/fork/Install.ps1, .github/fork/Install.cmd $folder
+        Compress-Archive -Path "$folder\*" -DestinationPath "$folder.zip"
+        Get-ChildItem $folder -Recurse | ForEach-Object { $_.FullName.Substring($folder.Length) }
+
+    - name: Publish the GitHub release
+      shell: pwsh
+      run: |
+        $notes = @"
+        Unofficial fork of [Files](https://github.com/files-community/Files).
+
+        **Install:** download ``Files-$env:VERSION-x64.zip``, extract it, and double-click ``Install.cmd``.
+        It trusts this fork's signing certificate (one UAC prompt), installs the Windows App Runtime if needed, then installs Files.
+        "@
+        gh release create '${{ github.ref_name }}' "$env:RELEASE_DIR\Files-$env:VERSION-x64.zip" `
+          --title "Files $env:VERSION (fork)" --notes $notes
+      env:
+        GH_TOKEN: ${{ github.token }}
